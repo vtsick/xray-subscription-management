@@ -43,6 +43,13 @@ Generate client subscriptions:
 ./generate_subscriptions.py
 ```
 
+Using `make`:
+
+```bash
+make check
+make rebuild
+```
+
 ## What Changed
 
 - The importer now rebuilds the database on each run, so repeated imports do not duplicate rows.
