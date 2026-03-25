@@ -2,6 +2,7 @@
 
 import argparse
 import base64
+import re
 import sqlite3
 from pathlib import Path
 from urllib.parse import quote, unquote, urlencode
@@ -87,13 +88,20 @@ def build_url(record, endpoint_host=None, endpoint_port=None, label_host=None):
     )
 
 
+def normalize_filename_component(value):
+    normalized = re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip())
+    normalized = normalized.strip("._-")
+    return normalized or "client"
+
+
 def write_subscription_files(base_dir: Path, uuid: str, email: str, urls):
     user_dir = base_dir / uuid
     user_dir.mkdir(parents=True, exist_ok=True)
 
     content = "\n".join(urls)
-    txt_path = user_dir / f"{email}.txt"
-    b64_path = user_dir / f"{email}.b64"
+    safe_email = normalize_filename_component(email)
+    txt_path = user_dir / f"{safe_email}.txt"
+    b64_path = user_dir / f"{safe_email}.b64"
 
     txt_path.write_text(content, encoding="utf-8")
     b64_path.write_text(base64.b64encode(content.encode("utf-8")).decode("ascii"))
