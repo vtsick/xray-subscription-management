@@ -80,9 +80,9 @@ The generator removes stale files in active user directories and removes subscri
 
 - `make check`: syntax-check all Python scripts.
 - `make validate`: validate the config catalogue.
-- `make import`: rebuild `subscriptions.db`.
+- `make import`: rebuild `subscriptions.db`. Accepts `SUBS_URL_PREFIX=...`.
 - `make generate`: generate subscriptions from the database.
-- `make rebuild`: run `validate`, `import`, and `generate`.
+- `make rebuild`: run `validate`, `import`, and `generate`. Accepts `SUBS_URL_PREFIX=...`.
 - `make bypass`: run `validate`, `import`, and then append bypass variants interactively.
 - `make sync`: mirror `subscriptions/` to `/var/www/html/xray/subscriptions/` by default.
 - `make clean`: remove `subscriptions.db` and `subscriptions/`.
@@ -113,6 +113,13 @@ Important:
 - the importer stores that prefix in the database metadata for later use
 - later imports may omit `--url-prefix` and reuse the stored value
 - if you already have an older `subscriptions.db`, rebuild it once with `--url-prefix` to populate the stored metadata
+
+The same bootstrap flow works through `make`:
+
+```bash
+make import SUBS_URL_PREFIX=https://your-host.example/xray/subscriptions
+make rebuild SUBS_URL_PREFIX=https://your-host.example/xray/subscriptions
+```
 
 The sync destination can be overridden when needed:
 

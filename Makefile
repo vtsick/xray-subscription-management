@@ -3,6 +3,8 @@ DB ?= subscriptions.db
 OUTDIR ?= subscriptions
 CATALOGUE ?= ../configs
 SYNC_DEST ?= /var/www/html/xray/subscriptions/
+SUBS_URL_PREFIX ?=
+URL_PREFIX_ARG := $(if $(strip $(SUBS_URL_PREFIX)),--url-prefix "$(SUBS_URL_PREFIX)",)
 
 .PHONY: help check validate import generate bypass sync rebuild clean
 
@@ -25,7 +27,7 @@ validate:
 	./validate_configs.py --catalogue "$(CATALOGUE)"
 
 import:
-	./import_configs.py --catalogue "$(CATALOGUE)" --dbpath "$(DB)"
+	./import_configs.py --catalogue "$(CATALOGUE)" --dbpath "$(DB)" $(URL_PREFIX_ARG)
 
 generate:
 	./generate_subscriptions.py --dbpath "$(DB)" --outdir "$(OUTDIR)"
