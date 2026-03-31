@@ -1,43 +1,49 @@
 # Xray Subscription Builder
 
-Utility scripts for building VLESS Reality subscription files from Xray server configs.
-
-## Purpose
-
-This directory contains a small offline workflow:
-
-1. Validate Xray server configs in `../configs`.
-2. Import the relevant server and client data into `subscriptions.db`.
-3. Generate per-client subscription files under `subscriptions/`.
-4. Optionally append bypass variants that replace the original endpoint host and port.
-
-The tools are intended for VLESS Reality server configs. Hosts that do not expose a VLESS Reality inbound are ignored during import and reported as informational during validation.
+Utility scripts for working with VLESS Reality client subscriptions derived from Xray server configs.
 
 ## Scope
 
-This project covers only:
+This project covers:
 
-- validating existing Xray server configs
-- importing the required data into SQLite
-- generating client subscription files
+- validating existing Xray configs
+- adding and deleting VLESS Reality clients in server configs
+- importing server and client data into SQLite
+- generating per-client subscription files
 - appending optional bypass variants
 
 Out of scope:
 
-- managing or provisioning Xray server configurations
-- deploying, serving, or distributing the generated subscription files
+- provisioning or managing the Xray servers themselves
+- deploying or hosting the generated subscription files
+
+## Workflow
+
+Typical flow:
+
+1. Maintain server configs in `../configs/<host>/config.json`.
+2. Validate them with `validate_configs.py`.
+3. Import the current Reality inbounds and clients into `subscriptions.db`.
+4. Generate subscription files under `subscriptions/`.
+5. Optionally publish `subscriptions/` with your own hosting method.
+
+`useradd.py` and `userdel.py` update the server configs first, then rebuild the local database and subscriptions automatically.
 
 ## Files
 
-- `validate_configs.py`: validates config structure and required metadata before import.
-- `import_configs.py`: rebuilds the SQLite database from the config catalogue.
-- `generate_subscriptions.py`: generates plain-text and base64 subscriptions for each client.
-- `create_bypass.py`: interactively appends bypass endpoint variants to every client subscription.
-- `Makefile`: wraps the common workflow.
+- `validate_configs.py`: validate config structure and required metadata.
+- `import_configs.py`: rebuild `subscriptions.db` from the config catalogue.
+- `generate_subscriptions.py`: generate `.txt` and `.b64` subscription files.
+- `create_bypass.py`: append interactive bypass endpoint variants.
+- `useradd.py`: add a client to every VLESS Reality inbound across the config catalogue.
+- `userdel.py`: remove a client from every VLESS Reality inbound across the config catalogue.
+- `user_ops.py`: shared helpers for editing config files.
+- `Makefile`: common validation and generation targets.
+- `sync-subs.sh`: example sync helper for copying generated subscriptions to a web root.
 
-## Expected Layout
+## Expected Config Layout
 
-The importer expects host directories like:
+The scripts expect host directories like:
 
 ```text
 ../configs/<host>/
@@ -47,28 +53,14 @@ The importer expects host directories like:
 ```
 
 - `config.json` is the Xray config for that host.
-- `key.pub` is required for any host with a VLESS Reality inbound because it is used as `pbk` in generated URLs.
-- `country.txt` is optional. It is used only as a label fragment in generated URL names.
+- `key.pub` is required for any host exposing a VLESS Reality inbound because it becomes the `pbk` parameter in generated client URLs.
+- `country.txt` is optional and is used only as a label fragment in generated URLs.
 
-## What Gets Imported
-
-For each inbound that matches:
-
-- `protocol == "vless"`
-- `streamSettings.security == "reality"`
-
-the importer stores:
-
-- host name and public domain
-- inbound tag, protocol, network, security, port
-- Reality settings needed for client URLs
-- client UUID, email label, and flow
-
-The database is rebuilt from scratch on every import. Re-running the import does not duplicate rows.
+Hosts without a VLESS Reality inbound are ignored by import and client-management operations.
 
 ## Generated Output
 
-Subscriptions are written under:
+Subscriptions are written as:
 
 ```text
 subscriptions/<uuid>/
@@ -78,44 +70,18 @@ subscriptions/<uuid>/
 
 - `.txt` contains one VLESS URL per line.
 - `.b64` contains the same content base64-encoded.
-- filenames are normalized from client email labels to avoid spaces and filesystem-hostile characters.
+- filenames are normalized from the client email label to avoid filesystem-hostile characters.
 
-The URL label fragment still uses the original client email label, not the normalized filename.
-
-## Quick Start
-
-Validate, import, and generate subscriptions:
-
-```bash
-make rebuild
-```
-
-Generate subscriptions with interactive bypass variants:
-
-```bash
-make bypass
-```
-
-Syntax check the scripts:
-
-```bash
-make check
-```
-
-Remove generated artifacts:
-
-```bash
-make clean
-```
+The generator removes stale files in active user directories and removes subscription directories for deleted users.
 
 ## Make Targets
 
-- `make check`: run Python syntax checks.
+- `make check`: syntax-check all Python scripts.
 - `make validate`: validate the config catalogue.
-- `make import`: rebuild `subscriptions.db` from configs.
-- `make generate`: generate subscription files from the database.
+- `make import`: rebuild `subscriptions.db`.
+- `make generate`: generate subscriptions from the database.
 - `make rebuild`: run `validate`, `import`, and `generate`.
-- `make bypass`: run `validate`, `import`, and then append interactive bypass variants.
+- `make bypass`: run `validate`, `import`, and then append bypass variants interactively.
 - `make clean`: remove `subscriptions.db` and `subscriptions/`.
 
 ## Direct Script Usage
@@ -129,7 +95,7 @@ Default paths match the current repository layout:
 ./create_bypass.py
 ```
 
-Custom paths can be supplied when needed:
+Custom paths are supported:
 
 ```bash
 ./validate_configs.py --catalogue ../configs
@@ -138,45 +104,97 @@ Custom paths can be supplied when needed:
 ./create_bypass.py --dbpath subscriptions.db --outdir subscriptions
 ```
 
+## User Management
+
+### Add a user
+
+Example:
+
+```bash
+./useradd.py alice
+```
+
+Optional arguments:
+
+- `--id <uuid>`: provide a specific UUID instead of generating one.
+- `--flow <flow>`: override the default `xtls-rprx-vision`.
+- `--url-prefix <url>`: subscription URL prefix.
+
+Default subscription URL prefix:
+
+```text
+https://void.fp.work.gd:10443/xray/subscriptions
+```
+
+`useradd.py`:
+
+- adds the client to every VLESS Reality inbound found in `../configs`
+- rebuilds `subscriptions.db`
+- regenerates the subscription files
+- prints:
+  - client UUID
+  - subscription path
+  - full subscription URL
+  - base64-encoded subscription URL
+  - ANSI UTF-8 QR code for the subscription URL
+
+Subscription path format:
+
+```text
+<uuid>/<normalized-email>.b64
+```
+
+### Delete a user
+
+Delete by email:
+
+```bash
+./userdel.py --email alice
+```
+
+Delete by UUID:
+
+```bash
+./userdel.py --id 11111111-2222-3333-4444-555555555555
+```
+
+`userdel.py` removes the matching client from every VLESS Reality inbound, rebuilds `subscriptions.db`, and regenerates subscriptions so deleted users no longer keep stale output directories.
+
 ## Validation Rules
 
 `validate_configs.py` checks:
 
 - JSON parsing and top-level `inbounds` structure
-- presence of required Reality fields
+- required Reality fields
 - missing or empty `key.pub` for Reality hosts
 - missing or empty `country.txt` for Reality hosts
 - duplicate client UUIDs inside one inbound
 - UUID reuse with different email labels across hosts
 
-Hosts without VLESS Reality inbounds do not fail validation.
+Hosts without VLESS Reality inbounds are reported as informational and do not fail validation.
 
 ## Bypass Mode
 
-`create_bypass.py` reads the already imported host list and prompts once per original endpoint.
+`create_bypass.py` reads the imported inbound list and prompts once per original endpoint.
 
-For each endpoint you can:
+For each endpoint you can enter:
 
-- enter a bypass hostname
-- enter an IPv4 address
-- enter an IPv6 address
-- skip that endpoint
+- a hostname
+- an IPv4 address
+- an IPv6 address
+- nothing, to skip before any default exists
 
-Bypass behavior:
+Behavior:
 
 - only the endpoint host and port are replaced
-- all other URL parameters stay unchanged
+- all other URL parameters remain unchanged
 - bypass additions are applied for all users
-- the first entered bypass host and port become the defaults for later prompts
+- the first entered bypass host and port become defaults for later prompts
 - pressing `Enter` on later prompts reuses the remembered defaults
-- entering `-` at a later host prompt skips that specific endpoint
+- entering `-` on a later host prompt skips that specific endpoint
 
 ## Notes
 
-- `subscriptions.db` and `subscriptions/` are ignored by Git because they are generated artifacts and may contain sensitive client data.
-- `make rebuild` stops immediately if validation fails.
-- the tools use only the Python standard library
-
-## Recommended Next Improvements
-
-- Add tests with a small fixture set covering multiple hosts and multiple Reality inbounds on one host.
+- `subscriptions.db` and `subscriptions/` are generated artifacts and are ignored by Git.
+- the tools use only the Python standard library, except `useradd.py` relies on the external `qrencode` command to print the ANSI UTF-8 QR code.
+- `sync-subs.sh` is only an example publishing helper and is not required by the core workflow.

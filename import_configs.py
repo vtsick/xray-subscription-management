@@ -168,29 +168,58 @@ def import_host(cursor, cfg_path: Path, args):
     return imported_inbounds, imported_clients
 
 
-def main():
-    args = parse_args()
-    base = Path(args.catalogue).expanduser().resolve()
+def rebuild_database(
+    catalogue,
+    dbpath,
+    domain="fp.work.gd",
+    encryption="none",
+    headertype="none",
+    fingerprint="chrome",
+):
+    base = Path(catalogue).expanduser().resolve()
     config_paths = sorted(base.glob("*/config.json"))
 
     if not config_paths:
         raise SystemExit(f"No config.json files found in {base}")
 
+    namespace = argparse.Namespace(
+        catalogue=str(base),
+        dbpath=dbpath,
+        domain=domain,
+        encryption=encryption,
+        headertype=headertype,
+        fingerprint=fingerprint,
+    )
+
     total_inbounds = 0
     total_clients = 0
 
-    with sqlite3.connect(args.dbpath) as conn:
+    with sqlite3.connect(dbpath) as conn:
         cursor = conn.cursor()
         cursor.executescript(SCHEMA)
 
         for cfg_path in config_paths:
-            imported_inbounds, imported_clients = import_host(cursor, cfg_path, args)
+            imported_inbounds, imported_clients = import_host(cursor, cfg_path, namespace)
             total_inbounds += imported_inbounds
             total_clients += imported_clients
 
+    return len(config_paths), total_inbounds, total_clients
+
+
+def main():
+    args = parse_args()
+    host_count, total_inbounds, total_clients = rebuild_database(
+        args.catalogue,
+        args.dbpath,
+        domain=args.domain,
+        encryption=args.encryption,
+        headertype=args.headertype,
+        fingerprint=args.fingerprint,
+    )
+
     print(
         f"Imported {total_inbounds} reality inbounds and "
-        f"{total_clients} client bindings from {len(config_paths)} hosts."
+        f"{total_clients} client bindings from {host_count} hosts."
     )
 
 

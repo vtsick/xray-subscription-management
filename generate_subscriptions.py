@@ -4,6 +4,7 @@ import argparse
 import base64
 import re
 import sqlite3
+import shutil
 from pathlib import Path
 from urllib.parse import quote, unquote, urlencode
 
@@ -97,6 +98,9 @@ def normalize_filename_component(value):
 def write_subscription_files(base_dir: Path, uuid: str, email: str, urls):
     user_dir = base_dir / uuid
     user_dir.mkdir(parents=True, exist_ok=True)
+    for existing_file in user_dir.glob("*"):
+        if existing_file.is_file():
+            existing_file.unlink()
 
     content = "\n".join(urls)
     safe_email = normalize_filename_component(email)
@@ -117,22 +121,38 @@ def fetch_client_records(cursor, client_uuid):
     return cursor.fetchall()
 
 
-def main():
-    args = parse_args()
-    out_dir = Path(args.outdir)
+def cleanup_stale_user_directories(out_dir: Path, active_user_ids):
+    active_user_ids = set(active_user_ids)
+    for child in out_dir.iterdir():
+        if child.is_dir() and child.name not in active_user_ids:
+            shutil.rmtree(child)
+
+
+def generate_all_subscriptions(dbpath, outdir):
+    out_dir = Path(outdir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    with sqlite3.connect(args.dbpath) as conn:
+    with sqlite3.connect(dbpath) as conn:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         clients = fetch_clients(cursor)
+        active_user_ids = []
 
         for client in clients:
             rows = fetch_client_records(cursor, client["UUID"])
             urls = [build_url(row) for row in rows]
             write_subscription_files(out_dir, client["UUID"], client["EMAIL"], urls)
+            active_user_ids.append(client["UUID"])
 
-    print(f"Generated subscriptions for {len(clients)} clients in {out_dir}")
+    cleanup_stale_user_directories(out_dir, active_user_ids)
+    return len(active_user_ids)
+
+
+def main():
+    args = parse_args()
+    count = generate_all_subscriptions(args.dbpath, args.outdir)
+
+    print(f"Generated subscriptions for {count} clients in {args.outdir}")
 
 
 if __name__ == "__main__":
