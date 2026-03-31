@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
 
 import argparse
-import base64
-import subprocess
 import uuid
 
-from generate_subscriptions import generate_all_subscriptions, normalize_filename_component
+from generate_subscriptions import generate_all_subscriptions
 from import_configs import rebuild_database
 from user_ops import DEFAULT_CATALOGUE, collect_reality_configs, save_config
-
-
-DEFAULT_URL_PREFIX = "https://void.fp.work.gd:10443/xray/subscriptions"
+from user_output import DEFAULT_URL_PREFIX, build_subscription_details, print_subscription_details
 
 
 def parse_args():
@@ -29,23 +25,6 @@ def parse_args():
     parser.add_argument("--headertype", default="none")
     parser.add_argument("--fingerprint", default="chrome")
     return parser.parse_args()
-
-
-def render_qr(text):
-    try:
-        completed = subprocess.run(
-            ["qrencode", "-t", "ANSIUTF8", text],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except FileNotFoundError as exc:
-        raise SystemExit("qrencode is required for QR output but was not found in PATH") from exc
-    except subprocess.CalledProcessError as exc:
-        raise SystemExit(f"qrencode failed: {exc.stderr.strip()}") from exc
-    return completed.stdout.rstrip()
-
-
 def main():
     args = parse_args()
     client_id = args.client_id or str(uuid.uuid4())
@@ -107,11 +86,7 @@ def main():
     )
     generate_all_subscriptions(args.dbpath, args.outdir)
 
-    filename = f"{normalize_filename_component(args.email)}.b64"
-    subscription_path = f"{client_id}/{filename}"
-    subscription_url = f"{args.url_prefix.rstrip('/')}/{subscription_path}"
-    encoded_url = base64.b64encode(subscription_url.encode("utf-8")).decode("ascii")
-    qr_text = render_qr(subscription_url)
+    details = build_subscription_details(client_id, args.email, args.url_prefix)
 
     print(f"Added client to {updated_inbounds} reality inbound(s).")
     if changed_files:
@@ -122,13 +97,7 @@ def main():
         print("Client already existed everywhere. Subscriptions were regenerated.")
 
     print()
-    print(f"ID: {client_id}")
-    print(f"Email: {args.email}")
-    print(f"Subscription path: {subscription_path}")
-    print(f"Subscription URL: {subscription_url}")
-    print(f"Subscription URL (base64): {encoded_url}")
-    print("Subscription URL QR (ANSI UTF-8):")
-    print(qr_text)
+    print_subscription_details(details)
 
 
 if __name__ == "__main__":

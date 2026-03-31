@@ -17,7 +17,7 @@ help:
 		'  make clean     - remove generated database and subscriptions'
 
 check:
-	$(PYTHON) -m py_compile validate_configs.py import_configs.py generate_subscriptions.py create_bypass.py user_ops.py useradd.py userdel.py
+	$(PYTHON) -m py_compile validate_configs.py import_configs.py generate_subscriptions.py create_bypass.py user_ops.py user_output.py useradd.py userdel.py showuser.py
 
 validate:
 	./validate_configs.py --catalogue "$(CATALOGUE)"

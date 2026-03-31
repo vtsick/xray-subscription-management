@@ -37,7 +37,9 @@ Typical flow:
 - `create_bypass.py`: append interactive bypass endpoint variants.
 - `useradd.py`: add a client to every VLESS Reality inbound across the config catalogue.
 - `userdel.py`: remove a client from every VLESS Reality inbound across the config catalogue.
+- `showuser.py`: show the generated subscription reference for an existing user.
 - `user_ops.py`: shared helpers for editing config files.
+- `user_output.py`: shared helpers for subscription URL and QR output.
 - `Makefile`: common validation and generation targets.
 - `sync-subs.sh`: example sync helper for copying generated subscriptions to a web root.
 
@@ -159,6 +161,22 @@ Delete by UUID:
 ```
 
 `userdel.py` removes the matching client from every VLESS Reality inbound, rebuilds `subscriptions.db`, and regenerates subscriptions so deleted users no longer keep stale output directories.
+
+### Show a user
+
+Show by email:
+
+```bash
+./showuser.py alice
+```
+
+`showuser.py` looks up the user in `subscriptions.db`, verifies the expected `.b64` file exists under `subscriptions/`, and prints the same information as `useradd.py`:
+
+- client UUID
+- subscription path
+- full subscription URL
+- base64-encoded subscription URL
+- ANSI UTF-8 QR code for the subscription URL
 
 ## Validation Rules
 
